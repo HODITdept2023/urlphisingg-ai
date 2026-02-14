@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 import numpy as np
 import pandas as pd
 import random
@@ -14,12 +15,40 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 
-st.set_page_config(page_title="Phishing URL Detection", layout="wide")
+# -------------------------------------------------
+# PAGE CONFIG
+# -------------------------------------------------
 
-st.title("🔐 Phishing & Malicious URL Detection System")
+st.set_page_config(page_title="Cybersecurity URL Detection", layout="wide")
 
 # -------------------------------------------------
-# URL Validation
+# SESSION STATE
+# -------------------------------------------------
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+# -------------------------------------------------
+# LOGIN PAGE
+# -------------------------------------------------
+
+def login_page():
+    st.title("🔐 Cybersecurity Login Portal")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if username == "admin" and password == "csdavanthi2026":
+            st.success("Login Successful!")
+            time.sleep(1)
+            st.session_state.logged_in = True
+            st.rerun()
+        else:
+            st.error("Invalid Credentials")
+
+# -------------------------------------------------
+# FEATURE EXTRACTION
 # -------------------------------------------------
 
 def is_valid_url(url):
@@ -31,9 +60,6 @@ def is_valid_url(url):
     )
     return re.match(pattern, url) is not None
 
-# -------------------------------------------------
-# Feature Extraction
-# -------------------------------------------------
 
 def extract_features(url):
 
@@ -87,7 +113,7 @@ def extract_features(url):
     return features
 
 # -------------------------------------------------
-# Generate Synthetic Dataset
+# MODEL TRAINING (Cached)
 # -------------------------------------------------
 
 @st.cache_resource
@@ -149,54 +175,77 @@ def train_models():
 
     return trained_models, results
 
-trained_models, results = train_models()
-
 # -------------------------------------------------
-# UI Input
+# MAIN DASHBOARD
 # -------------------------------------------------
 
-url_input = st.text_input("Enter URL")
+def main_dashboard():
 
-if st.button("Analyze URL"):
+    # Background style
+    st.markdown("""
+        <style>
+        .stApp {
+            background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+            color: white;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-    if not is_valid_url(url_input):
-        st.error("⚠️ Invalid URL format! Marked as MALICIOUS ❌")
-    else:
+    # Logo
+    st.image("assets/logo.png", width=150)
 
-        features = np.array(extract_features(url_input)).reshape(1, -1)
+    st.title("🔐 AI Powered Cybersecurity URL Detection")
 
-        predictions = []
-        confidences = []
+    trained_models, results = train_models()
 
-        for name, model in trained_models.items():
-            pred = model.predict(features)[0]
-            prob = model.predict_proba(features)[0]
-            confidence = max(prob) * 100
+    url_input = st.text_input("Enter URL to Analyze")
 
-            label = "MALICIOUS ❌" if pred == 1 else "LEGITIMATE ✅"
+    if st.button("Analyze URL"):
 
-            predictions.append((name, label, confidence))
-            confidences.append(confidence)
+        if not is_valid_url(url_input):
+            st.error("⚠️ Invalid URL format! Marked as MALICIOUS ❌")
+        else:
 
-        st.subheader("Model Predictions")
+            with st.spinner("Analyzing URL..."):
+                time.sleep(2)
 
-        for name, label, conf in predictions:
-            st.write(f"**{name}** → {label} | Confidence: {conf:.2f}% | Accuracy: {results[name]*100:.2f}%")
+            features = np.array(extract_features(url_input)).reshape(1, -1)
 
-        # Majority Voting
-        votes = [1 if p[1] == "MALICIOUS ❌" else 0 for p in predictions]
-        final_decision = "MALICIOUS ❌" if sum(votes) > len(votes)/2 else "LEGITIMATE ✅"
+            predictions = []
+            confidences = []
 
-        st.subheader("Final Majority Decision")
-        st.success(final_decision)
+            for name, model in trained_models.items():
+                pred = model.predict(features)[0]
+                prob = model.predict_proba(features)[0]
+                confidence = max(prob) * 100
 
-        # Confidence Graph
-        names = [p[0] for p in predictions]
+                label = "MALICIOUS ❌" if pred == 1 else "LEGITIMATE ✅"
+                predictions.append((name, label, confidence))
+                confidences.append(confidence)
 
-        fig, ax = plt.subplots()
-        ax.bar(names, confidences)
-        ax.set_ylabel("Confidence (%)")
-        ax.set_title("Model Confidence Comparison")
-        plt.xticks(rotation=45)
+            st.subheader("Model Predictions")
 
-        st.pyplot(fig)
+            for name, label, conf in predictions:
+                st.write(f"**{name}** → {label} | Confidence: {conf:.2f}% | Accuracy: {results[name]*100:.2f}%")
+
+            votes = [1 if p[1] == "MALICIOUS ❌" else 0 for p in predictions]
+            final_decision = "MALICIOUS ❌" if sum(votes) > len(votes)/2 else "LEGITIMATE ✅"
+
+            st.subheader("Final Majority Decision")
+            st.success(final_decision)
+
+            fig, ax = plt.subplots()
+            ax.bar([p[0] for p in predictions], confidences)
+            ax.set_ylabel("Confidence (%)")
+            plt.xticks(rotation=45)
+
+            st.pyplot(fig)
+
+# -------------------------------------------------
+# ROUTING
+# -------------------------------------------------
+
+if not st.session_state.logged_in:
+    login_page()
+else:
+    main_dashboard()
